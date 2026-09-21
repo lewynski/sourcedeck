@@ -1,5 +1,33 @@
 # SourceDeck
 
+A Tachiyomi/Aniyomi-style streaming app for the web (Next.js, Vercel-ready) that ports cleanly to Android with Capacitor.
+
+## Streaming (Tachiyomi-style sources)
+
+Every catalog is a **source**: a small module implementing `CatalogSource` in `lib/sources/types.ts` (`popular`, `latest`, `search`, `details`, `episodes`, `playback`). The app never renders a site itself — it asks a source for structured data and shows it in its own **Browse → Title → Watch** flow with a **Library**, **continue watching** and **resume position**.
+
+| Route | Purpose |
+| --- | --- |
+| `/browse` | pick a source, popular/latest/search, category filters, direct-link player |
+| `/title` | details, genres, episode list with progress, add to library |
+| `/watch` | player (MP4/WebM + HLS via hls.js, WebVTT subtitles), next episode, auto-advance |
+| `/library` | saved titles + continue watching |
+| `/` | web sources: sites you just want to open (see below) |
+
+Included sources: **Internet Archive** (public-domain films, cartoons, classic TV; free CORS-enabled API) and a **direct link player** for any MP4/WebM/HLS URL you're allowed to watch.
+
+### Adding a source
+
+1. Create `lib/sources/mysource.ts` exporting a `CatalogSource`.
+2. Add it to `catalogSources` in `lib/sources/index.ts`.
+
+Use services with public APIs or content you're licensed to stream. DRM-protected services (e.g. mewatch.sg) can't provide a stream to a custom player — use them as **web sources** (player window / native WebView).
+
+### Android (Capacitor)
+
+Sources are plain TypeScript `fetch` calls, so they run unchanged inside Capacitor. For sources whose servers don't send CORS headers, enable `CapacitorHttp` (native HTTP, no CORS) in `capacitor.config.ts`. For web sources, use the Capacitor Browser/InAppBrowser plugin or a native WebView.
+
+
 A local-first website source manager built with Next.js and Tailwind CSS. It is designed for Vercel deployment and can later be adapted into an Android app with Capacitor plus a native WebView layer.
 
 ## Features

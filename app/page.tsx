@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { loadHistory, loadSources, saveHistory, saveSources } from "@/lib/storage";
 import type { HistoryEntry, SavedSource, SourceCategory } from "@/types/source";
@@ -394,6 +395,14 @@ export default function HomePage() {
               <p className="mt-0.5 text-sm font-medium text-[#d7cec8]">Web source workspace</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          <Link
+            href="/browse"
+            className="inline-flex items-center gap-2 border border-[#9d3715]/70 bg-[#9d3715]/10 px-4 py-2.5 text-sm font-semibold text-[#f4f0ea] transition hover:bg-[#9d3715]/20"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Watch</span>
+          </Link>
           <button
             onClick={openAddModal}
             className="inline-flex items-center gap-2 bg-[#f4f0ea] px-4 py-2.5 text-sm font-semibold text-[#0a0908] transition hover:bg-white"
@@ -401,6 +410,7 @@ export default function HomePage() {
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">Add source</span>
           </button>
+          </div>
         </header>
 
         <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
