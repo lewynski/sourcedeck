@@ -1,0 +1,9 @@
+{
+  "name": "SourceDeck",
+  "short_name": "SourceDeck",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0908",
+  "theme_color": "#0A0908",
+  "description": "A local-first web source launcher."
+}
