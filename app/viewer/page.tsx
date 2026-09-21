@@ -10,7 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { loadSources } from "@/lib/storage";
 import type { SavedSource } from "@/types/source";
 
@@ -40,7 +40,7 @@ function hostname(url: string) {
   }
 }
 
-export default function ViewerPage() {
+function ViewerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sourceId = searchParams.get("id");
@@ -212,5 +212,24 @@ export default function ViewerPage() {
         <span className="hidden shrink-0 sm:inline">Android version can later use a native WebView for fuller navigation controls.</span>
       </footer>
     </main>
+  );
+}
+
+
+function ViewerFallback() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#0a0908] text-[#f4f0ea]">
+      <div className="flex items-center gap-3 text-sm text-[#a49992]">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading viewer…
+      </div>
+    </main>
+  );
+}
+
+export default function ViewerPage() {
+  return (
+    <Suspense fallback={<ViewerFallback />}>
+      <ViewerContent />
+    </Suspense>
   );
 }
