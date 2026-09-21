@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  AppWindow,
   ArrowLeft,
+  Check,
+  Copy,
   ExternalLink,
   Globe2,
   Home,
@@ -40,6 +43,8 @@ function hostname(url: string) {
   }
 }
 
+type EmbedCheck = { status: "checking" | "ok" | "blocked" | "unknown"; reason?: string };
+
 function ViewerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +57,9 @@ function ViewerContent() {
   const [frameKey, setFrameKey] = useState(0);
   const [frameStarted, setFrameStarted] = useState(false);
   const [showEmbedHelp, setShowEmbedHelp] = useState(false);
+  const [embedCheck, setEmbedCheck] = useState<EmbedCheck>({ status: "checking" });
+  const [forceEmbed, setForceEmbed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!sourceId) {
@@ -66,21 +74,67 @@ function ViewerContent() {
   const url = useMemo(() => safeUrl(source?.url ?? rawUrl), [source?.url, rawUrl]);
   const name = source?.name ?? rawName ?? (url ? hostname(url) : "Web source");
 
+  // Ask the server whether the site permits being framed, so we can tell the
+  // user immediately instead of showing a blank iframe for several seconds.
+  useEffect(() => {
+    setForceEmbed(false);
+    if (!url) return;
+    const controller = new AbortController();
+    setEmbedCheck({ status: "checking" });
+    fetch(`/api/embed-check?url=${encodeURIComponent(url)}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.embeddable === true) setEmbedCheck({ status: "ok", reason: data.reason });
+        else if (data.embeddable === false) setEmbedCheck({ status: "blocked", reason: data.reason });
+        else setEmbedCheck({ status: "unknown", reason: data.reason });
+      })
+      .catch((err) => {
+        if (err?.name !== "AbortError") setEmbedCheck({ status: "unknown" });
+      });
+    return () => controller.abort();
+  }, [url]);
+
+  const showFrame = !!url && (embedCheck.status === "ok" || embedCheck.status === "unknown" || forceEmbed);
+
+  // Reset load state only when the target or reload key changes.
   useEffect(() => {
     setFrameStarted(false);
     setShowEmbedHelp(false);
-    if (!url) return;
+  }, [url, frameKey, forceEmbed]);
 
-    const timer = window.setTimeout(() => {
-      if (!frameStarted) setShowEmbedHelp(true);
-    }, 4500);
-
+  // Slow-load hint (separate effect so a successful load doesn't reset itself).
+  useEffect(() => {
+    if (!showFrame || frameStarted) return;
+    const timer = window.setTimeout(() => setShowEmbedHelp(true), 6000);
     return () => window.clearTimeout(timer);
-  }, [url, frameKey, frameStarted]);
+  }, [showFrame, frameStarted, frameKey]);
 
   function openExternal() {
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  // A separate top-level browser window: the site runs as itself, so its own
+  // player, login and DRM work normally, while SourceDeck stays open beside it.
+  function openPlayerWindow() {
+    if (!url) return;
+    const w = Math.min(1280, window.screen.availWidth);
+    const h = Math.min(800, window.screen.availHeight);
+    const left = Math.max(0, (window.screen.availWidth - w) / 2);
+    const top = Math.max(0, (window.screen.availHeight - h) / 2);
+    const win = window.open(url, "sourcedeck-player", `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
+    if (!win) openExternal(); // popup blocked → fall back to a normal tab
+  }
+
+  async function copyLink() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable */
+    }
   }
 
   if (!loaded) {
@@ -156,6 +210,13 @@ function ViewerContent() {
             <Home className="h-4 w-4" /> Source home
           </button>
           <button
+            onClick={openPlayerWindow}
+            className="hidden h-10 shrink-0 items-center gap-2 border border-white/10 px-3 text-xs text-[#a49992] transition hover:bg-white/5 hover:text-white md:flex"
+            title="Open in a separate player window"
+          >
+            <AppWindow className="h-4 w-4" /> Player window
+          </button>
+          <button
             onClick={openExternal}
             className="flex h-10 shrink-0 items-center gap-2 bg-[#f4f0ea] px-3 text-xs font-semibold text-[#0a0908] transition hover:bg-white sm:px-4"
           >
@@ -166,6 +227,7 @@ function ViewerContent() {
       </header>
 
       <div className="relative min-h-0 flex-1 bg-[#050505]">
+        {showFrame && (
         <iframe
           key={frameKey}
           src={url}
@@ -180,8 +242,57 @@ function ViewerContent() {
             setShowEmbedHelp(false);
           }}
         />
+        )}
 
-        {!frameStarted && (
+        {embedCheck.status === "checking" && !forceEmbed && (
+          <div className="absolute inset-0 grid place-items-center bg-[#0a0908]">
+            <div className="flex items-center gap-3 text-sm text-[#897973]">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking {hostname(url)}…
+            </div>
+          </div>
+        )}
+
+        {embedCheck.status === "blocked" && !forceEmbed && (
+          <div className="absolute inset-0 grid place-items-center overflow-auto bg-[#0a0908] px-5">
+            <div className="w-full max-w-xl border border-white/10 bg-[#11100f] p-7">
+              <ShieldAlert className="h-6 w-6 text-[#c45b36]" />
+              <h2 className="mt-4 text-xl font-medium tracking-[-0.03em]">{hostname(url)} can&apos;t be embedded</h2>
+              <p className="mt-2 text-sm leading-6 text-[#897973]">
+                {embedCheck.reason}. This is a deliberate protection set by the site, and streaming services also tend to
+                require a top-level page for their DRM-protected player and login. SourceDeck doesn&apos;t bypass it — open the
+                site in its own window instead.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <button
+                  onClick={openPlayerWindow}
+                  className="inline-flex items-center gap-2 bg-[#f4f0ea] px-4 py-2.5 text-xs font-semibold text-[#0a0908] transition hover:bg-white"
+                >
+                  <AppWindow className="h-4 w-4" /> Open in player window
+                </button>
+                <button
+                  onClick={openExternal}
+                  className="inline-flex items-center gap-2 border border-white/10 px-4 py-2.5 text-xs text-[#a49992] transition hover:bg-white/5 hover:text-white"
+                >
+                  <ExternalLink className="h-4 w-4" /> New tab
+                </button>
+                <button
+                  onClick={copyLink}
+                  className="inline-flex items-center gap-2 border border-white/10 px-4 py-2.5 text-xs text-[#a49992] transition hover:bg-white/5 hover:text-white"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />} {copied ? "Copied" : "Copy link"}
+                </button>
+              </div>
+              <button
+                onClick={() => setForceEmbed(true)}
+                className="mt-5 text-[11px] text-[#6f605a] underline underline-offset-4 hover:text-[#a49992]"
+              >
+                Try embedding anyway
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showFrame && !frameStarted && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[#0a0908]">
             <div className="flex items-center gap-3 text-sm text-[#897973]">
               <Loader2 className="h-4 w-4 animate-spin" /> Opening {hostname(url)}…
@@ -189,7 +300,7 @@ function ViewerContent() {
           </div>
         )}
 
-        {showEmbedHelp && (
+        {showFrame && showEmbedHelp && !frameStarted && (
           <div className="absolute bottom-4 left-1/2 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 border border-[#9d3715]/50 bg-[#11100f]/95 p-4 shadow-2xl backdrop-blur-xl sm:flex sm:items-center sm:justify-between sm:gap-5">
             <div>
               <p className="text-sm font-medium text-[#e9e2dc]">Source taking too long?</p>
@@ -198,17 +309,17 @@ function ViewerContent() {
               </p>
             </div>
             <button
-              onClick={openExternal}
+              onClick={openPlayerWindow}
               className="mt-3 inline-flex shrink-0 items-center gap-2 bg-[#f4f0ea] px-4 py-2.5 text-xs font-semibold text-[#0a0908] sm:mt-0"
             >
-              <ExternalLink className="h-3.5 w-3.5" /> Open website
+              <AppWindow className="h-3.5 w-3.5" /> Open player window
             </button>
           </div>
         )}
       </div>
 
       <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-white/10 bg-[#0a0908] px-4 py-2 text-[10px] text-[#6f605a] sm:px-5">
-        <span className="truncate">Embedded web mode • site permissions still apply</span>
+        <span className="truncate">Embedded web mode • sites that forbid framing open in a player window</span>
         <span className="hidden shrink-0 sm:inline">Android version can later use a native WebView for fuller navigation controls.</span>
       </footer>
     </main>

@@ -42,7 +42,7 @@ const emptyForm: SourceForm = {
   category: "Anime",
 };
 
-const categories: SourceCategory[] = ["Anime", "Manga", "Media", "Community", "Other"];
+const categories: SourceCategory[] = ["Anime", "Manga", "Streaming", "Media", "Community", "Other"];
 
 function normalizeUrl(value: string) {
   const trimmed = value.trim();

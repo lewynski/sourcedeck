@@ -1,4 +1,4 @@
-export type SourceCategory = "Anime" | "Manga" | "Media" | "Community" | "Other";
+export type SourceCategory = "Anime" | "Manga" | "Streaming" | "Media" | "Community" | "Other";
 
 export type SavedSource = {
   id: string;

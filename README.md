@@ -25,6 +25,16 @@ Some websites send `X-Frame-Options` or Content Security Policy (`frame-ancestor
 
 The web version also cannot reliably control the back/forward history of a cross-origin embedded site. A later Android version can provide a fuller browser experience through a native WebView.
 
+## Sites that forbid embedding (e.g. streaming services)
+
+Before loading the iframe, the viewer calls `/api/embed-check`, a small server route that reads the site's `X-Frame-Options` and CSP `frame-ancestors` headers (with SSRF protection against private addresses). If the site forbids framing, SourceDeck shows that immediately and offers:
+
+- **Open in player window** – a separate top-level popup window, sized for video, next to SourceDeck
+- **New tab** and **Copy link**
+- **Try embedding anyway** – for the rare case the header check is wrong
+
+Streaming services such as mewatch.sg typically block framing and use DRM-protected players and logins that need to run as a top-level page, so the player window is the right way to watch them. SourceDeck deliberately does not strip or rewrite these headers through a proxy. For an in-app experience on Android, use a native WebView/in-app browser (Capacitor), which loads the site as a top-level page.
+
 ## Design direction
 
 The UI uses a restrained enterprise-inspired visual system: off-black surfaces, warm neutral text, rust accents, strict borders/grids, and subtle motion. It is inspired by the visual language of the ERP design reference supplied for the project, while the implementation and interface are original.
