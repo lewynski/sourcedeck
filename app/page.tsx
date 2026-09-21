@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { loadHistory, loadSources, saveHistory, saveSources } from "@/lib/storage";
 import type { HistoryEntry, SavedSource, SourceCategory } from "@/types/source";
 
@@ -91,6 +92,7 @@ function formatRelative(iso?: string) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [sources, setSources] = useState<SavedSource[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [view, setView] = useState<ViewMode>("home");
@@ -151,11 +153,8 @@ export default function HomePage() {
     setHistory((current) => [entry, ...current].slice(0, 100));
   }
 
-  function openExternal(url: string, name: string, sourceId?: string) {
-    const parsed = safeUrl(url);
-    if (!parsed) return;
-    window.open(parsed, "_blank", "noopener,noreferrer");
-    pushHistory(name, parsed, sourceId);
+  function recordOpen(url: string, name: string, sourceId?: string) {
+    pushHistory(name, url, sourceId);
     if (sourceId) {
       setSources((current) =>
         current.map((source) =>
@@ -167,6 +166,19 @@ export default function HomePage() {
     }
   }
 
+  function openInViewer(url: string, name: string, sourceId?: string) {
+    const parsed = safeUrl(url);
+    if (!parsed) return;
+    recordOpen(parsed, name, sourceId);
+
+    if (sourceId) {
+      router.push(`/viewer?id=${encodeURIComponent(sourceId)}`);
+      return;
+    }
+
+    router.push(`/viewer?url=${encodeURIComponent(parsed)}&name=${encodeURIComponent(name)}`);
+  }
+
   function handleQuickOpen(event: FormEvent) {
     event.preventDefault();
     const parsed = safeUrl(quickUrl);
@@ -175,7 +187,7 @@ export default function HomePage() {
       return;
     }
     setError("");
-    openExternal(parsed, hostname(parsed));
+    openInViewer(parsed, hostname(parsed));
     setQuickUrl("");
   }
 
@@ -438,7 +450,7 @@ export default function HomePage() {
                       </div>
                     </form>
                     {error && !modalOpen && <p className="mt-2 text-xs text-[#d97757]">{error}</p>}
-                    <p className="mt-3 text-xs leading-5 text-[#6f605a]">Websites open in a new tab because many sites block iframe embedding.</p>
+                    <p className="mt-3 text-xs leading-5 text-[#6f605a]">SourceDeck will try the built-in viewer first. If a site blocks embedding, use the external-open fallback in the viewer.</p>
                   </div>
                 </div>
               </section>
@@ -466,7 +478,7 @@ export default function HomePage() {
                         key={source.id}
                         source={source}
                         compact
-                        onOpen={() => openExternal(source.url, source.name, source.id)}
+                        onOpen={() => openInViewer(source.url, source.name, source.id)}
                         onFavorite={() => toggleFavorite(source.id)}
                         onEdit={() => openEditModal(source)}
                         onDelete={() => removeSource(source.id)}
@@ -482,7 +494,7 @@ export default function HomePage() {
                 <div className="bg-[#0a0908] p-7 sm:p-9">
                   <p className="text-[10px] uppercase tracking-micro text-[#9d3715]">How it works</p>
                   <h2 className="mt-5 max-w-lg text-3xl font-medium tracking-[-0.04em] sm:text-4xl">A simple launcher now. A stronger Android shell later.</h2>
-                  <p className="mt-5 max-w-xl text-sm leading-6 text-[#897973]">This version saves URLs locally and opens them safely in the browser. When you convert it to Android, the same source data can feed an in-app browser or WebView layer.</p>
+                  <p className="mt-5 max-w-xl text-sm leading-6 text-[#897973]">This version saves URLs locally and opens them in a built-in web viewer when the source permits embedding. Sites that block framing can still be opened externally. The same source data can later feed a native Android WebView layer.</p>
                 </div>
                 <div className="bg-[#11100f] p-7 sm:p-9">
                   {["Save a website URL", "Organize and favorite sources", "Track your recent launches", "Export your data before moving devices"].map((item, index) => (
@@ -524,7 +536,7 @@ export default function HomePage() {
                     <SourceCard
                       key={source.id}
                       source={source}
-                      onOpen={() => openExternal(source.url, source.name, source.id)}
+                      onOpen={() => openInViewer(source.url, source.name, source.id)}
                       onFavorite={() => toggleFavorite(source.id)}
                       onEdit={() => openEditModal(source)}
                       onDelete={() => removeSource(source.id)}
@@ -551,7 +563,7 @@ export default function HomePage() {
                   history.map((entry, index) => (
                     <button
                       key={entry.id}
-                      onClick={() => openExternal(entry.url, entry.name, entry.sourceId)}
+                      onClick={() => openInViewer(entry.url, entry.name, entry.sourceId)}
                       className="group grid w-full grid-cols-[44px_1fr_auto] items-center gap-4 border-b border-white/10 p-4 text-left transition last:border-b-0 hover:bg-white/[0.025] sm:p-5"
                     >
                       <span className="grid h-11 w-11 place-items-center border border-white/10 bg-[#0a0908] text-xs font-semibold text-[#a49992]">{initials(entry.name)}</span>
@@ -797,7 +809,7 @@ function SourceCard({
       {compact && <p className="mt-5 text-xs text-[#6f605a]">{formatRelative(source.lastOpenedAt)}</p>}
 
       <button onClick={onOpen} className="group mt-5 flex w-full items-center justify-between border border-white/10 px-3 py-2.5 text-xs font-medium text-[#d7cec8] transition hover:border-[#9d3715]/70 hover:bg-[#9d3715]/10 hover:text-white">
-        Open source
+        Open in SourceDeck
         <ExternalLink className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
       </button>
     </article>
